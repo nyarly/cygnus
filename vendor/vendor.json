@@ -15,6 +15,12 @@
 			"revisionTime": "2016-02-16T23:20:12Z"
 		},
 		{
+			"checksumSHA1": "0YgW0+rmiIzLlvhIKlQ0s0olPg8=",
+			"path": "github.com/mattn/go-sqlite3",
+			"revision": "e5a3c16c5c1d80b24f633e68aecd6b0702786d3d",
+			"revisionTime": "2016-10-04T16:01:36Z"
+		},
+		{
 			"checksumSHA1": "87ihTyumE+67LIFvx3bBXPA4fvk=",
 			"path": "github.com/opentable/go-singularity",
 			"revision": "2e1a4065d38d72ed528d57b1055f5bc5f3e962be",

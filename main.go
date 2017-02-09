@@ -18,6 +18,11 @@ func debug(fmt string, vars ...interface{}) {
 	debugLog.Printf(fmt, vars...)
 }
 
+type taskDesc struct {
+	*dtos.SingularityTaskId
+	*dtos.SingularityTask
+}
+
 func main() {
 	opts := parseOpts()
 	if opts.debug {
@@ -42,22 +47,25 @@ func main() {
 		writer.Write([]byte{'\n'})
 	}
 
-	lines := make(chan []string, 10)
+	lines := make(chan *taskDesc, 10)
 	wait := new(sync.WaitGroup)
 
-	go tabRows(writer, wait, lines)
+	database := newDB()
+	defer database.close()
+
+	go tabRows(writer, wait, opts, database, lines)
 
 	for _, task := range tasksList {
 		wait.Add(1)
 		debug("Starting line for %#v", task)
-		go taskLine(task, client, opts, wait, lines)
+		go taskLine(task, client, wait, lines)
 	}
 
 	wait.Wait()
 	writer.Flush()
 }
 
-func taskLine(task *dtos.SingularityTask, client *singularity.Client, opts *options, wait *sync.WaitGroup, lines chan []string) {
+func taskLine(task *dtos.SingularityTask, client *singularity.Client, wait *sync.WaitGroup, lines chan *taskDesc) {
 	id := task.TaskId
 	if id == nil {
 		log.Printf("Missing ID for task %#v", task)
@@ -104,7 +112,7 @@ func taskLine(task *dtos.SingularityTask, client *singularity.Client, opts *opti
 		return
 	}
 
-	lines <- append([]string{id.RequestId, id.DeployId}, taskValues(opts, env)...)
+	lines <- &taskDesc{id, task}
 }
 
 func taskValues(opts *options, env *dtos.Environment) []string {
@@ -153,11 +161,28 @@ func fetchDeploys(reqP *dtos.SingularityRequestParent, client *singularity.Clien
 	}
 }
 
-func tabRows(writer *tabwriter.Writer, wait *sync.WaitGroup, lines chan []string) {
+func (td *taskDesc) Env() *dtos.Environment {
+	mesos := td.SingularityTask.MesosTask
+	if mesos == nil {
+		return nil
+	}
+
+	cmd := mesos.Command
+	if cmd == nil {
+		return nil
+	}
+	return cmd.Environment
+}
+
+func (td *taskDesc) rowString(opts *options) string {
+	return strings.Join(append([]string{td.SingularityTaskId.RequestId, td.SingularityTaskId.DeployId}, taskValues(opts, td.Env())...), "\t") + "\n"
+}
+
+func tabRows(writer *tabwriter.Writer, wait *sync.WaitGroup, opts *options, db *database, lines chan *taskDesc) {
 	for {
 		line := <-lines
-		writer.Write([]byte(strings.Join(line, "\t")))
-		writer.Write([]byte{'\n'})
+		writer.Write([]byte(line.rowString(opts)))
+		db.addTask(line)
 		wait.Done()
 	}
 }
