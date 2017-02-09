@@ -23,11 +23,24 @@ time by users of the tool.
 -x 1: TASK_HOST, PORT0
 ```
 
-# Future Work
+# Data Collection
 
-Other query options and data collection.
+Regardless of the environment variables queried on the command line,
+Cygnus also creates a sqlite file at $TEMPDIR/cygnus.db,
+which can be reviewed with `sqlite3 $TEMPDIR/cygnus.db`.
+This file is deleted and replaced on every invocation.
 
-Capture data into
-e.g. a sqlite3 or boltdb file
-so that further ad hoc queries can be made
-without re-collecting from the server.
+From there, consider `.tables`
+(as no guarantees are made about the schema.)
+As of this moment, you might try something like:
+```
+⮀ sqlite3 $TMPDIR/cygnus.db
+sqlite> .headers on
+sqlite> .mode column
+sqlite> select * from task natural join env;
+task_id     request_ident             deploy_ident                      env_id      name         value
+----------  ------------------------  --------------------------------  ----------  -----------  ----------
+1           asdfasdfasasdfasdfasdfas  3f3c5e7602a84e64917a9dda788697e3  1           INSTANCE_NO  1
+1           asdfasdfasasdfasdfasdfas  3f3c5e7602a84e64917a9dda788697e3  2           TASK_HOST    localhost
+1           asdfasdfasasdfasdfasdfas  3f3c5e7602a84e64917a9dda788697e3  3           TASK_REQUES  192.168.99
+```
