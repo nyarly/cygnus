@@ -1,71 +1,36 @@
 package main
 
 import (
-	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 	"sync"
 	"text/tabwriter"
 
-	"github.com/SeeSpotRun/coerce"
-	docopt "github.com/docopt/docopt-go"
 	singularity "github.com/opentable/go-singularity"
 	dtos "github.com/opentable/go-singularity/dtos"
 )
 
-type options struct {
-	URL                                     string
-	printHeaders, printActive, printPending bool
-	noPrintHeaders, noPrintActive           bool
-	env                                     []string
-	x                                       int
-}
+var debugLog = log.New(ioutil.Discard, "", 0)
 
-const docstring = `Scan a Singularity and return data
-Usage: cygnus [options] [(--env=<env>)...] <url>
-
-Options:
-	-H, --no-print-headers  Don't print the header prologue
-	-A, --no-print-active   Do not print the active deploys
-	-p, --print-pending     Also include pending deploys
-	--env=<env>             Environment variables to queury
-	-x <num>                Use environment default <num>
-
-Environment defaults are sets of useful environment variables, collected over
-time by users of the tool.
--x 1: TASK_HOST, PORT0
-`
-
-func parseOpts() *options {
-	parsed, err := docopt.Parse(docstring, nil, true, "", false)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	opts := options{}
-	err = coerce.Struct(&opts, parsed, "-%s", "--%s", "<%s>")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	opts.printHeaders = !opts.noPrintHeaders
-	opts.printActive = !opts.noPrintActive
-
-	switch opts.x {
-	case 1:
-		fmt.Println("Using TASK_HOST and PORT0")
-		opts.env = []string{"TASK_HOST", "PORT0"}
-	}
-
-	return &opts
+func debug(fmt string, vars ...interface{}) {
+	debugLog.Printf(fmt, vars...)
 }
 
 func main() {
 	opts := parseOpts()
+	if opts.debug {
+		debugLog.SetOutput(os.Stderr)
+		debugLog.SetFlags(log.Lshortfile | log.Ltime)
+	}
 
 	client := singularity.NewClient(opts.URL)
+	debug("Getting active tasks")
 	tasksList, err := client.GetActiveTasks()
+	debug("tasksList count: %d", len(tasksList))
+	debug("tasksList: %#v", tasksList)
+	debug("err: %v", err)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -83,6 +48,8 @@ func main() {
 	go tabRows(writer, wait, lines)
 
 	for _, task := range tasksList {
+		wait.Add(1)
+		debug("Starting line for %#v", task)
 		go taskLine(task, client, opts, wait, lines)
 	}
 
@@ -91,7 +58,6 @@ func main() {
 }
 
 func taskLine(task *dtos.SingularityTask, client *singularity.Client, opts *options, wait *sync.WaitGroup, lines chan []string) {
-	wait.Add(1)
 	id := task.TaskId
 	if id == nil {
 		log.Printf("Missing ID for task %#v", task)
@@ -102,7 +68,11 @@ func taskLine(task *dtos.SingularityTask, client *singularity.Client, opts *opti
 	var err error
 
 	for i := 0; i < 3; i++ {
+		debug("Getting history: %v", id.Id)
 		taskHistory, err := client.GetHistoryForTask(id.Id)
+		debug("taskHistory: %#v", taskHistory)
+		debug("err: %v", err)
+
 		if err == nil {
 			task = taskHistory.Task
 			break

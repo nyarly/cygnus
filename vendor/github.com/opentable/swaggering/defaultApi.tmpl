@@ -1,0 +1,60 @@
+package {{.BasePackageName}}
+
+import "{{.PackageImportName}}/dtos"
+
+{{range .Operations}}
+{{- if not .GoTypeInvalid -}}
+func (client *Client) {{.GoMethodName}}(
+	{{- range .Parameters}}{{.Name}} {{.GoTypePrefix -}}
+	{{if .GoModel}}dtos.{{end -}}{{.GoBaseType}}, {{end -}}
+) ({{ if not (eq .GoBaseType "") }}response {{.GoTypePrefix -}}
+  {{if .GoModel}}dtos.{{end -}}
+{{.GoBaseType}}, {{end}} err error) {
+	pathParamMap := map[string]interface{}{
+		{{range .Parameters -}}
+		{{if eq "path" .ParamType -}}
+		  "{{.Name}}": {{.Name}},
+	  {{- end }}
+		{{- end }}
+	}
+
+  queryParamMap := map[string]interface{}{
+		{{range .Parameters -}}
+		{{if eq "query" .ParamType -}}
+		  "{{.Name}}": {{.Name}},
+	  {{- end }}
+		{{- end }}
+	}
+
+	{{if .GoModel -}}
+	{{if eq .GoTypePrefix ""}}
+		response = make({{.GoTypePrefix}}dtos.{{.GoBaseType}}, 0)
+		err = client.DTORequest(&response, "{{.Method}}", "{{.Path}}", pathParamMap, queryParamMap
+		{{- if .HasBody -}}
+		, body
+		{{- end -}})
+	{{else}}
+		response = new(dtos.{{.GoBaseType}})
+		err = client.DTORequest(response, "{{.Method}}", "{{.Path}}", pathParamMap, queryParamMap
+		{{- if .HasBody -}}
+		, body
+		{{- end -}})
+	{{end}}
+	{{else if (eq .GoBaseType "")}}
+	_, err = client.Request("{{.Method}}", "{{.Path}}", pathParamMap, queryParamMap
+	{{- if .HasBody -}}
+	, body
+  {{- end -}})
+	{{else if eq .GoBaseType "string"}}
+	resBody, err := client.Request("{{.Method}}", "{{.Path}}", pathParamMap, queryParamMap
+	{{- if .HasBody -}}
+	, body
+  {{- end -}})
+	readBuf := bytes.Buffer{}
+	readBuf.ReadFrom(resBody)
+	response = string(readBuf.Bytes())
+	{{- end}}
+	return
+}
+{{end}}
+{{end}}

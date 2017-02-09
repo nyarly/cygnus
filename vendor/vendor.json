@@ -1,0 +1,66 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "FW4FhNGYsGMG3aGAMlpjvtoy5vk=",
+			"path": "github.com/SeeSpotRun/coerce",
+			"revision": "254d9a2987155861565f76fe962b61429284c197",
+			"revisionTime": "2016-08-18T22:37:30Z"
+		},
+		{
+			"checksumSHA1": "F+YOz/6ymsuIxUy511OAdxjyhRI=",
+			"path": "github.com/docopt/docopt-go",
+			"revision": "784ddc588536785e7299f7272f39101f7faccc3f",
+			"revisionTime": "2016-02-16T23:20:12Z"
+		},
+		{
+			"checksumSHA1": "87ihTyumE+67LIFvx3bBXPA4fvk=",
+			"path": "github.com/opentable/go-singularity",
+			"revision": "2e1a4065d38d72ed528d57b1055f5bc5f3e962be",
+			"revisionTime": "2017-01-18T00:41:27Z"
+		},
+		{
+			"checksumSHA1": "2f6pzOkY2Km6oP/nJk5Q5zG4yGQ=",
+			"path": "github.com/opentable/go-singularity/dtos",
+			"revision": "2e1a4065d38d72ed528d57b1055f5bc5f3e962be",
+			"revisionTime": "2017-01-18T00:41:27Z"
+		},
+		{
+			"checksumSHA1": "9Y9DExiqUf+UklQVEWYq1xHAOe0=",
+			"origin": "github.com/opentable/go-singularity/vendor/github.com/opentable/swaggering",
+			"path": "github.com/opentable/swaggering",
+			"revision": "2e1a4065d38d72ed528d57b1055f5bc5f3e962be",
+			"revisionTime": "2017-01-18T00:41:27Z"
+		},
+		{
+			"checksumSHA1": "UozwJCtg4ATQvolqbn8iblLjxqY=",
+			"origin": "github.com/opentable/go-singularity/vendor/golang.org/x/tools/go/ast/astutil",
+			"path": "golang.org/x/tools/go/ast/astutil",
+			"revision": "2e1a4065d38d72ed528d57b1055f5bc5f3e962be",
+			"revisionTime": "2017-01-18T00:41:27Z"
+		},
+		{
+			"checksumSHA1": "2bj5Jq3+RmE2blLnFUfkASYGTlg=",
+			"origin": "github.com/opentable/go-singularity/vendor/golang.org/x/tools/godoc/vfs",
+			"path": "golang.org/x/tools/godoc/vfs",
+			"revision": "2e1a4065d38d72ed528d57b1055f5bc5f3e962be",
+			"revisionTime": "2017-01-18T00:41:27Z"
+		},
+		{
+			"checksumSHA1": "Qwc7VecyIh84Ol8n9J9DUwZQtII=",
+			"origin": "github.com/opentable/go-singularity/vendor/golang.org/x/tools/godoc/vfs/mapfs",
+			"path": "golang.org/x/tools/godoc/vfs/mapfs",
+			"revision": "2e1a4065d38d72ed528d57b1055f5bc5f3e962be",
+			"revisionTime": "2017-01-18T00:41:27Z"
+		},
+		{
+			"checksumSHA1": "/kuZmP3tatGrYza14yqzPmuJQRI=",
+			"origin": "github.com/opentable/go-singularity/vendor/golang.org/x/tools/imports",
+			"path": "golang.org/x/tools/imports",
+			"revision": "2e1a4065d38d72ed528d57b1055f5bc5f3e962be",
+			"revisionTime": "2017-01-18T00:41:27Z"
+		}
+	],
+	"rootPath": "github.com/nyarly/cygnus"
+}
