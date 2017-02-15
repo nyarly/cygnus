@@ -12,8 +12,16 @@ var schema = []string{
 	"pragma foreign_keys = ON;",
 	`create table task(
 		task_id integer primary key autoincrement,
+		req_id references req,
+		deploy_ident string,
+		status string
+	);`,
+	`create table req(
+		req_id integer primary key autoincrement,
 		request_ident string,
-		deploy_ident string
+		instances integer,
+		type string,
+		state string
 	);`,
 	`create table env(
 		env_id integer primary key autoincrement,
@@ -45,13 +53,43 @@ func (db *database) close() {
 }
 
 func (db *database) addTask(desc *taskDesc) {
-	stmt, err := db.db.Exec("insert into task (request_ident, deploy_ident) values ($1, $2)",
-		desc.SingularityTaskId.RequestId, desc.SingularityTaskId.DeployId)
+	var stmt sql.Result
+	var err error
+
+	if desc.SingularityRequestParent == nil {
+		stmt, err = db.db.Exec("insert into req (request_ident, instances, type) values ($1, $2, $3)",
+			desc.SingularityTaskId.RequestId, 0, "UNKNOWN")
+	} else {
+		stmt, err = db.db.Exec("insert into req (request_ident, instances, type, state) values ($1, $2, $3, $4)",
+			desc.SingularityRequestParent.Request.Id,
+			desc.SingularityRequestParent.Request.Instances,
+			string(desc.SingularityRequestParent.Request.RequestType),
+			string(desc.SingularityRequestParent.State),
+		)
+	}
+
+	if err != nil {
+		debug("error inserting request: %v", err)
+		return
+	}
+	id, err := stmt.LastInsertId()
+	if err != nil {
+		debug("error getting new req db id: %v", err)
+		return
+	}
+
+	status := "UNKNOWN"
+	if desc.SingularityTaskHistoryUpdate != nil {
+		status = string(desc.SingularityTaskHistoryUpdate.TaskState)
+	}
+	stmt, err = db.db.Exec("insert into task (req_id, deploy_ident, status) values ($1, $2, $3)",
+		id, desc.SingularityTaskId.DeployId, status)
+
 	if err != nil {
 		debug("error inserting task: %v", err)
 		return
 	}
-	id, err := stmt.LastInsertId()
+	id, err = stmt.LastInsertId()
 	if err != nil {
 		debug("error getting new task db id: %v", err)
 		return

@@ -12,6 +12,7 @@ type options struct {
 	URL                                     string
 	printHeaders, printActive, printPending bool
 	noPrintHeaders, noPrintActive           bool
+	printInactiveTasks, printStatus         bool
 	env                                     []string
 	x                                       int
 	debug                                   bool
@@ -21,12 +22,14 @@ const docstring = `Scan a Singularity and return data
 Usage: cygnus [options] [(--env=<env>)...] <url>
 
 Options:
-	-H, --no-print-headers  Don't print the header prologue
-	-A, --no-print-active   Do not print the active deploys
-	-p, --print-pending     Also include pending deploys
-	--debug                 Print debugging information
-	--env=<env>             Environment variables to queury
-	-x <num>                Use environment default <num>
+	-H, --no-print-headers       Don't print the header prologue
+	-A, --no-print-active        Do not print the active deploys
+	-p, --print-pending          Also include pending deploys
+	-K, --print-inactive-tasks   Include inactive tasks in output
+	-s, --print-status           Include the task status
+	--debug                      Print debugging information
+	--env=<env>                  Environment variables to queury
+	-x <num>                     Use environment default <num>
 
 Environment defaults are sets of useful environment variables, collected over
 time by users of the tool.

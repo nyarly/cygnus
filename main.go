@@ -21,6 +21,8 @@ func debug(fmt string, vars ...interface{}) {
 type taskDesc struct {
 	*dtos.SingularityTaskId
 	*dtos.SingularityTask
+	*dtos.SingularityRequestParent
+	*dtos.SingularityTaskHistoryUpdate
 }
 
 func main() {
@@ -31,14 +33,13 @@ func main() {
 	}
 
 	client := singularity.NewClient(opts.URL)
-	debug("Getting active tasks")
-	tasksList, err := client.GetActiveTasks()
-	debug("tasksList count: %d", len(tasksList))
-	debug("tasksList: %#v", tasksList)
-	debug("err: %v", err)
+
+	debug("Getting all requests")
+	reqList, err := client.GetRequests()
 	if err != nil {
 		log.Fatal(err)
 	}
+	debug("reqList count: %d", len(reqList))
 
 	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
 
@@ -55,18 +56,42 @@ func main() {
 
 	go tabRows(writer, wait, opts, database, lines)
 
-	for _, task := range tasksList {
-		wait.Add(1)
-		debug("Starting line for %#v", task)
-		go taskLine(task, client, wait, lines)
+	seen := map[string]struct{}{}
+
+	for n, req := range reqList {
+		debug("req %d: %#v", n, req)
+		histo, _ := client.GetTaskHistoryForRequest(req.Request.Id, 10, 1)
+		if opts.printInactiveTasks {
+			for _, hist := range histo {
+				if _, have := seen[hist.TaskId.Id]; have {
+					continue
+				}
+				seen[hist.TaskId.Id] = struct{}{}
+
+				wait.Add(1)
+				debug("Starting line for %#v", hist.TaskId)
+				go getTask(hist.TaskId, reqList, client, wait, lines)
+			}
+		}
+		histo, _ = client.GetTaskHistoryForActiveRequest(req.Request.Id)
+		for _, hist := range histo {
+			if _, have := seen[hist.TaskId.Id]; have {
+				continue
+			}
+			seen[hist.TaskId.Id] = struct{}{}
+
+			wait.Add(1)
+			debug("Starting line for %#v", hist.TaskId)
+			go getTask(hist.TaskId, reqList, client, wait, lines)
+		}
 	}
 
 	wait.Wait()
 	writer.Flush()
 }
 
-func taskLine(task *dtos.SingularityTask, client *singularity.Client, wait *sync.WaitGroup, lines chan *taskDesc) {
-	id := task.TaskId
+func getTask(id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList, client *singularity.Client, wait *sync.WaitGroup, lines chan *taskDesc) {
+	var task *dtos.SingularityTask
 	if id == nil {
 		log.Printf("Missing ID for task %#v", task)
 		wait.Add(-1)
@@ -75,11 +100,16 @@ func taskLine(task *dtos.SingularityTask, client *singularity.Client, wait *sync
 
 	var err error
 
+	var taskHistory *dtos.SingularityTaskHistory
+	var lastUpdate *dtos.SingularityTaskHistoryUpdate
+
 	for i := 0; i < 3; i++ {
 		debug("Getting history: %v", id.Id)
-		taskHistory, err := client.GetHistoryForTask(id.Id)
+		taskHistory, err = client.GetHistoryForTask(id.Id)
 		debug("taskHistory: %#v", taskHistory)
-		debug("err: %v", err)
+		if len(taskHistory.TaskUpdates) > 0 {
+			lastUpdate = taskHistory.TaskUpdates[0]
+		}
 
 		if err == nil {
 			task = taskHistory.Task
@@ -91,6 +121,13 @@ func taskLine(task *dtos.SingularityTask, client *singularity.Client, wait *sync
 		wait.Add(-1)
 		return
 	}
+
+	for _, upd := range taskHistory.TaskUpdates {
+		if upd.Timestamp > lastUpdate.Timestamp {
+			lastUpdate = upd
+		}
+	}
+	debug("last update: %#v", lastUpdate)
 
 	mesos := task.MesosTask
 	if mesos == nil {
@@ -112,12 +149,23 @@ func taskLine(task *dtos.SingularityTask, client *singularity.Client, wait *sync
 		return
 	}
 
-	lines <- &taskDesc{id, task}
+	var taskReq *dtos.SingularityRequestParent
+
+	for _, req := range reqs {
+		if req.Request.Id == id.RequestId {
+			taskReq = req
+			break
+		}
+	}
+
+	lines <- &taskDesc{id, task, taskReq, lastUpdate}
 }
 
-func taskValues(opts *options, env *dtos.Environment) []string {
+func taskValues(opts *options, td *taskDesc) []string {
 	vals := []string{}
 	vars := map[string]string{}
+
+	env := td.Env()
 
 	for _, v := range env.Variables {
 		vars[v.Name] = v.Value
@@ -130,6 +178,15 @@ func taskValues(opts *options, env *dtos.Environment) []string {
 			vals = append(vals, "")
 		}
 	}
+
+	if opts.printStatus {
+		status := "UNKNOWN"
+		if td.SingularityTaskHistoryUpdate != nil {
+			status = string(td.SingularityTaskHistoryUpdate.TaskState)
+		}
+		vals = append(vals, status)
+	}
+
 	return vals
 }
 
@@ -175,23 +232,41 @@ func (td *taskDesc) Env() *dtos.Environment {
 }
 
 func (td *taskDesc) rowString(opts *options) string {
-	return strings.Join(append([]string{td.SingularityTaskId.RequestId, td.SingularityTaskId.DeployId}, taskValues(opts, td.Env())...), "\t") + "\n"
+	return strings.Join(append([]string{td.SingularityTaskId.RequestId, td.SingularityTaskId.DeployId}, taskValues(opts, td)...), "\t") + "\n"
 }
 
 func tabRows(writer *tabwriter.Writer, wait *sync.WaitGroup, opts *options, db *database, lines chan *taskDesc) {
 	for {
 		line := <-lines
-		writer.Write([]byte(line.rowString(opts)))
+		if printable(line, opts) {
+			writer.Write([]byte(line.rowString(opts)))
+		}
 		db.addTask(line)
 		wait.Done()
 	}
 }
 
+func printable(desc *taskDesc, opts *options) bool {
+	debug("printable: %t %v %s", opts.printInactiveTasks,
+		desc.SingularityTaskHistoryUpdate,
+		desc.SingularityTaskHistoryUpdate.TaskState)
+	return opts.printInactiveTasks ||
+		desc.SingularityTaskHistoryUpdate == nil ||
+		desc.SingularityTaskHistoryUpdate.TaskState ==
+			dtos.SingularityTaskHistoryUpdateExtendedTaskStateTASK_RUNNING
+}
+
 func headerNames(opts *options) []string {
-	if !(opts.printPending && opts.printActive) {
-		return opts.env
+	headers := []string{}
+
+	if opts.printPending || opts.printActive {
+		headers = append(headers, "State")
 	}
-	return append([]string{"State"}, opts.env...)
+	headers = append(headers, opts.env...)
+	if opts.printStatus {
+		headers = append(headers, "Task Status")
+	}
+	return headers
 }
 
 func depValues(opts *options, marker string, dep *dtos.SingularityDeploy) []string {
