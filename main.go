@@ -60,34 +60,31 @@ func main() {
 
 	for n, req := range reqList {
 		debug("req %d: %#v", n, req)
-		histo, _ := client.GetTaskHistoryForRequest(req.Request.Id, 10, 1)
 		if opts.printInactiveTasks {
-			for _, hist := range histo {
-				if _, have := seen[hist.TaskId.Id]; have {
-					continue
-				}
-				seen[hist.TaskId.Id] = struct{}{}
-
-				wait.Add(1)
-				debug("Starting line for %#v", hist.TaskId)
-				go getTask(hist.TaskId, reqList, client, wait, lines)
-			}
+			histo, _ := client.GetTaskHistoryForRequest(req.Request.Id, 10, 1)
+			seen = getTasks(client, histo, lines, reqList, seen, wait)
 		}
-		histo, _ = client.GetTaskHistoryForActiveRequest(req.Request.Id)
-		for _, hist := range histo {
-			if _, have := seen[hist.TaskId.Id]; have {
-				continue
-			}
-			seen[hist.TaskId.Id] = struct{}{}
 
-			wait.Add(1)
-			debug("Starting line for %#v", hist.TaskId)
-			go getTask(hist.TaskId, reqList, client, wait, lines)
-		}
+		histo, _ := client.GetTaskHistoryForActiveRequest(req.Request.Id)
+		seen = getTasks(client, histo, lines, reqList, seen, wait)
 	}
 
 	wait.Wait()
 	writer.Flush()
+}
+
+func getTasks(client *singularity.Client, histo dtos.SingularityTaskIdHistoryList, lines chan *taskDesc, reqList dtos.SingularityRequestParentList, seen map[string]struct{}, wait *sync.WaitGroup) map[string]struct{} {
+	for _, hist := range histo {
+		if _, have := seen[hist.TaskId.Id]; have {
+			continue
+		}
+		seen[hist.TaskId.Id] = struct{}{}
+
+		wait.Add(1)
+		debug("Starting line for %#v", hist.TaskId)
+		go getTask(hist.TaskId, reqList, client, wait, lines)
+	}
+	return seen
 }
 
 func getTask(id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList, client *singularity.Client, wait *sync.WaitGroup, lines chan *taskDesc) {
