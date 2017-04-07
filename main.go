@@ -23,6 +23,7 @@ type taskDesc struct {
 	*dtos.SingularityTask
 	*dtos.SingularityRequestParent
 	*dtos.SingularityTaskHistoryUpdate
+	*dtos.DockerInfo
 }
 
 func main() {
@@ -48,7 +49,7 @@ func main() {
 		writer.Write([]byte{'\n'})
 	}
 
-	lines := make(chan *taskDesc, 10)
+	lines := make(chan *taskDesc, 20)
 	wait := new(sync.WaitGroup)
 
 	database := newDB()
@@ -99,6 +100,7 @@ func getTask(id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList,
 
 	var taskHistory *dtos.SingularityTaskHistory
 	var lastUpdate *dtos.SingularityTaskHistoryUpdate
+	var dockerInfo *dtos.DockerInfo
 
 	for i := 0; i < 3; i++ {
 		debug("Getting history: %v", id.Id)
@@ -125,6 +127,7 @@ func getTask(id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList,
 		}
 	}
 	debug("last update: %#v", lastUpdate)
+	debug("task request: %#v", task)
 
 	mesos := task.MesosTask
 	if mesos == nil {
@@ -132,6 +135,9 @@ func getTask(id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList,
 		wait.Add(-1)
 		return
 	}
+	debug("mesos task info %#v", mesos)
+	debug("mesos task info container %#v", mesos.Container)
+	debug("mesos task info docker %#v", mesos.Container.Docker)
 
 	cmd := mesos.Command
 	if cmd == nil {
@@ -146,6 +152,11 @@ func getTask(id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList,
 		return
 	}
 
+	c := mesos.Container
+	if c != nil {
+		dockerInfo = c.Docker
+	}
+
 	var taskReq *dtos.SingularityRequestParent
 
 	for _, req := range reqs {
@@ -155,36 +166,7 @@ func getTask(id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList,
 		}
 	}
 
-	lines <- &taskDesc{id, task, taskReq, lastUpdate}
-}
-
-func taskValues(opts *options, td *taskDesc) []string {
-	vals := []string{}
-	vars := map[string]string{}
-
-	env := td.Env()
-
-	for _, v := range env.Variables {
-		vars[v.Name] = v.Value
-	}
-
-	for _, e := range opts.env {
-		if v, ok := vars[e]; ok {
-			vals = append(vals, v)
-		} else {
-			vals = append(vals, "")
-		}
-	}
-
-	if opts.printStatus {
-		status := "UNKNOWN"
-		if td.SingularityTaskHistoryUpdate != nil {
-			status = string(td.SingularityTaskHistoryUpdate.TaskState)
-		}
-		vals = append(vals, status)
-	}
-
-	return vals
+	lines <- &taskDesc{id, task, taskReq, lastUpdate, dockerInfo}
 }
 
 func fetchDeploys(reqP *dtos.SingularityRequestParent, client *singularity.Client, opts *options, wait *sync.WaitGroup, lines chan []string) {
@@ -263,7 +245,46 @@ func headerNames(opts *options) []string {
 	if opts.printStatus {
 		headers = append(headers, "Task Status")
 	}
+	if opts.printDockerImage {
+		headers = append(headers, "Docker Image")
+	}
 	return headers
+}
+
+func taskValues(opts *options, td *taskDesc) []string {
+	vals := []string{}
+	vars := map[string]string{}
+
+	env := td.Env()
+
+	for _, v := range env.Variables {
+		vars[v.Name] = v.Value
+	}
+
+	for _, e := range opts.env {
+		if v, ok := vars[e]; ok {
+			vals = append(vals, v)
+		} else {
+			vals = append(vals, "")
+		}
+	}
+
+	if opts.printStatus {
+		status := "UNKNOWN"
+		if td.SingularityTaskHistoryUpdate != nil {
+			status = string(td.SingularityTaskHistoryUpdate.TaskState)
+		}
+		vals = append(vals, status)
+	}
+	if opts.printDockerImage {
+		if td.DockerInfo == nil {
+			vals = append(vals, "<? none ?>")
+		} else {
+			vals = append(vals, td.DockerInfo.Image)
+		}
+	}
+
+	return vals
 }
 
 func depValues(opts *options, marker string, dep *dtos.SingularityDeploy) []string {

@@ -13,6 +13,7 @@ type options struct {
 	printHeaders, printActive, printPending bool
 	noPrintHeaders, noPrintActive           bool
 	printInactiveTasks, printStatus         bool
+	printDockerImage                        bool
 	env                                     []string
 	x                                       int
 	debug                                   bool
@@ -24,11 +25,12 @@ Usage: cygnus [options] [(--env=<env>)...] <url>
 Options:
 	-H, --no-print-headers       Don't print the header prologue
 	-A, --no-print-active        Do not print the active deploys
-	-p, --print-pending          Also include pending deploys
 	-K, --print-inactive-tasks   Include inactive tasks in output
+	-p, --print-pending          Also include pending deploys
 	-s, --print-status           Include the task status
 	--debug                      Print debugging information
 	--env=<env>                  Environment variables to queury
+	--print-docker-image         Include the docker image in output
 	-x <num>                     Use environment default <num>
 
 Environment defaults are sets of useful environment variables, collected over

@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -28,6 +29,11 @@ var schema = []string{
 		task_id references task,
 		name string,
 		value string
+	);`,
+	`create table docker_image(
+		docker_image_id integer primary key autoincrement,
+		task_id references task,
+		image_name string
 	);`,
 }
 
@@ -101,6 +107,13 @@ func (db *database) addTask(desc *taskDesc) {
 			debug("error inserting task env pair (%q: %q): %v", vrb.Name, vrb.Value, err)
 		}
 	}
+
+	if desc.DockerInfo != nil {
+		db.db.Exec("insert into docker_image (task_id, image_name) values ($1, $2)", id, desc.DockerInfo.Image)
+		if err != nil {
+			debug("error inserting task docker image (%q): %v", desc.DockerInfo.Image, err)
+		}
+	}
 }
 
 func openDB() (*sql.DB, error) {
@@ -115,7 +128,7 @@ func openDB() (*sql.DB, error) {
 func createSchema(db *sql.DB) {
 	for _, cmd := range schema {
 		if _, err := db.Exec(cmd); err != nil {
-			panic(err)
+			panic(fmt.Errorf("Executing %q: %v", cmd, err))
 		}
 	}
 }
