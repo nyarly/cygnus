@@ -24,6 +24,7 @@ type taskDesc struct {
 	*dtos.SingularityRequestParent
 	*dtos.SingularityTaskHistoryUpdate
 	*dtos.DockerInfo
+	url string
 }
 
 func main() {
@@ -63,18 +64,18 @@ func main() {
 		debug("req %d: %#v", n, req)
 		if opts.printInactiveTasks {
 			histo, _ := client.GetTaskHistoryForRequest(req.Request.Id, 10, 1)
-			seen = getTasks(client, histo, lines, reqList, seen, wait)
+			seen = getTasks(opts.URL, client, histo, lines, reqList, seen, wait)
 		}
 
 		histo, _ := client.GetTaskHistoryForActiveRequest(req.Request.Id)
-		seen = getTasks(client, histo, lines, reqList, seen, wait)
+		seen = getTasks(opts.URL, client, histo, lines, reqList, seen, wait)
 	}
 
 	wait.Wait()
 	writer.Flush()
 }
 
-func getTasks(client *singularity.Client, histo dtos.SingularityTaskIdHistoryList, lines chan *taskDesc, reqList dtos.SingularityRequestParentList, seen map[string]struct{}, wait *sync.WaitGroup) map[string]struct{} {
+func getTasks(url string, client *singularity.Client, histo dtos.SingularityTaskIdHistoryList, lines chan *taskDesc, reqList dtos.SingularityRequestParentList, seen map[string]struct{}, wait *sync.WaitGroup) map[string]struct{} {
 	for _, hist := range histo {
 		if _, have := seen[hist.TaskId.Id]; have {
 			continue
@@ -83,12 +84,12 @@ func getTasks(client *singularity.Client, histo dtos.SingularityTaskIdHistoryLis
 
 		wait.Add(1)
 		debug("Starting line for %#v", hist.TaskId)
-		go getTask(hist.TaskId, reqList, client, wait, lines)
+		go getTask(url, hist.TaskId, reqList, client, wait, lines)
 	}
 	return seen
 }
 
-func getTask(id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList, client *singularity.Client, wait *sync.WaitGroup, lines chan *taskDesc) {
+func getTask(url string, id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList, client *singularity.Client, wait *sync.WaitGroup, lines chan *taskDesc) {
 	var task *dtos.SingularityTask
 	if id == nil {
 		log.Printf("Missing ID for task %#v", task)
@@ -166,7 +167,7 @@ func getTask(id *dtos.SingularityTaskId, reqs dtos.SingularityRequestParentList,
 		}
 	}
 
-	lines <- &taskDesc{id, task, taskReq, lastUpdate, dockerInfo}
+	lines <- &taskDesc{id, task, taskReq, lastUpdate, dockerInfo, url}
 }
 
 func fetchDeploys(reqP *dtos.SingularityRequestParent, client *singularity.Client, opts *options, wait *sync.WaitGroup, lines chan []string) {
