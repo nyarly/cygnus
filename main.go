@@ -170,34 +170,6 @@ func getTask(url string, id *dtos.SingularityTaskId, reqs dtos.SingularityReques
 	lines <- &taskDesc{id, task, taskReq, lastUpdate, dockerInfo, url}
 }
 
-func fetchDeploys(reqP *dtos.SingularityRequestParent, client *singularity.Client, opts *options, wait *sync.WaitGroup, lines chan []string) {
-	wait.Add(2)
-	reqX := reqP.Request
-	if reqX == nil {
-		log.Printf("Missing request for RequestParent %#v", reqP)
-		wait.Add(-2)
-		return
-	}
-	req, err := client.GetRequest(reqX.Id)
-	if err != nil {
-		log.Printf("Err getting deploy info: %v", err)
-		wait.Add(-2)
-		return
-	}
-
-	if active := req.ActiveDeploy; active != nil && opts.printActive {
-		lines <- append([]string{reqX.Id, active.Id}, depValues(opts, "active", active)...)
-	} else {
-		wait.Add(-1)
-	}
-
-	if pending := req.PendingDeploy; pending != nil && opts.printPending {
-		lines <- append([]string{reqX.Id, pending.Id}, depValues(opts, "pending", pending)...)
-	} else {
-		wait.Add(-1)
-	}
-}
-
 func (td *taskDesc) Env() *dtos.Environment {
 	mesos := td.SingularityTask.MesosTask
 	if mesos == nil {
@@ -221,7 +193,11 @@ func tabRows(writer *tabwriter.Writer, wait *sync.WaitGroup, opts *options, db *
 		if printable(line, opts) {
 			writer.Write([]byte(line.rowString(opts)))
 		}
-		db.addTask(line)
+		go func(line *taskDesc) {
+			wait.Add(1)
+			db.addTask(line)
+			wait.Done()
+		}(line)
 		wait.Done()
 	}
 }
@@ -285,20 +261,5 @@ func taskValues(opts *options, td *taskDesc) []string {
 		}
 	}
 
-	return vals
-}
-
-func depValues(opts *options, marker string, dep *dtos.SingularityDeploy) []string {
-	vals := []string{}
-	if opts.printPending && opts.printActive {
-		vals = append(vals, marker)
-	}
-	for _, e := range opts.env {
-		if v, ok := dep.Env[e]; ok {
-			vals = append(vals, v)
-		} else {
-			vals = append(vals, "")
-		}
-	}
 	return vals
 }
