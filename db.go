@@ -22,7 +22,10 @@ var schema = []string{
 		");",
 	`create table singularity(
 		singularity_id integer primary key autoincrement,
-		url string
+		url string,
+		last_query_for_active timestamp,
+		last_query_for_inactive timestamp,
+		last_query_for_pending timestamp
 	);`,
 	`create table req(
 		req_id integer primary key autoincrement,
@@ -169,7 +172,7 @@ func (db *database) addSing(url string) (int64, error) {
 }
 
 func (db *database) addReq(singID int64, instances int32, reqID, reqType, state string) (int64, error) {
-	rows, err := db.db.Query("select req_id, captured_at from req where request_ident = $1", reqID)
+	rows, err := db.db.Query("select req_id, captured_at from req where request_ident = $1 and singularity_id = $2", reqID, singID)
 	defer rows.Close()
 	if err != nil {
 		return 0, err
